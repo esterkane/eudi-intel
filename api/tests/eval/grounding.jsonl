@@ -1,0 +1,8 @@
+{"id": "wua-hlr", "query": "What are the high-level requirements for issuing a Wallet Unit Attestation?", "answerable": true, "expect_source_contains": "annex-2", "expect_answer_mentions": ["wallet unit attestation"]}
+{"id": "topic-20", "query": "What is Topic 20 in the ARF about?", "answerable": true, "expect_source_contains": "eudi-doc-architecture-and-reference-framework", "expect_answer_mentions": ["strong user authentication"]}
+{"id": "credential-formats", "query": "Which credential formats does the EUDI Wallet reference implementation support?", "answerable": true, "expect_source_contains": "feature-map", "expect_answer_mentions": ["mso_mdoc"]}
+{"id": "revocation", "query": "What does the ARF say about attestation revocation?", "answerable": true, "expect_source_contains": "eudi-doc-architecture-and-reference-framework", "expect_answer_mentions": ["revocation"]}
+{"id": "trust-mark", "query": "What is the EUDI Wallet Trust Mark?", "answerable": true, "expect_source_contains": "eudi-doc-architecture-and-reference-framework", "expect_answer_mentions": ["trust mark"]}
+{"id": "oos-capital", "query": "What is the capital of France?", "answerable": false}
+{"id": "oos-football", "query": "Who won the 2030 football world cup?", "answerable": false}
+{"id": "absent-quantum", "query": "What does the ARF specify about quantum teleportation of credentials between wallets?", "answerable": false}
