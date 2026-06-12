@@ -1,4 +1,4 @@
-"""git collector — clone --depth 1 / fetch a repo mirror (no REST, no rate limit).
+﻿"""git collector — clone --depth 1 / fetch a repo mirror (no REST, no rate limit).
 
 The repo content itself is consumed by Phase 2 parsers from the mirror directory;
 the snapshot records the HEAD commit as the content hash so re-runs without new
@@ -18,7 +18,7 @@ class GitCollectorError(RuntimeError):
     pass
 
 
-async def _run_git(*args: str, cwd: Path | None = None) -> str:
+async def run_git(*args: str, cwd: Path | None = None) -> str:
     proc = await asyncio.create_subprocess_exec(
         "git",
         *args,
@@ -39,13 +39,13 @@ async def collect_git(spec: SourceSpec, repos_dir: Path) -> CollectResult:
     mirror = repos_dir / spec.id
     if not (mirror / ".git").exists():
         repos_dir.mkdir(parents=True, exist_ok=True)
-        await _run_git("clone", "--depth", "1", spec.url, str(mirror))
+        await run_git("clone", "--depth", "1", spec.url, str(mirror))
     else:
-        await _run_git("fetch", "--depth", "1", "origin", cwd=mirror)
-        await _run_git("reset", "--hard", "origin/HEAD", cwd=mirror)
+        await run_git("fetch", "--depth", "1", "origin", cwd=mirror)
+        await run_git("reset", "--hard", "origin/HEAD", cwd=mirror)
 
-    head = await _run_git("rev-parse", "HEAD", cwd=mirror)
-    branch = await _run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=mirror)
+    head = await run_git("rev-parse", "HEAD", cwd=mirror)
+    branch = await run_git("rev-parse", "--abbrev-ref", "HEAD", cwd=mirror)
     return CollectResult(
         source_id=spec.id,
         url=spec.url,

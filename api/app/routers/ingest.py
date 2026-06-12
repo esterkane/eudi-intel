@@ -10,7 +10,19 @@ from app.collectors.registry import REGISTRY, get_source
 from app.collectors.runner import SourceRunReport, run_all, run_sources
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.models.entities import (
+    Discussion,
+    Document,
+    Issue,
+    PullRequest,
+    Release,
+    RoadmapItem,
+    Section,
+    Version,
+    VersionDiff,
+)
 from app.models.source import SourceSnapshot
+from app.services.parse_pipeline import ParseReport, parse_all
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -42,6 +54,52 @@ async def ingest_run_one(source_id: str) -> IngestRunResponse:
         known = ", ".join(s.id for s in REGISTRY)
         raise HTTPException(status_code=404, detail=f"unknown source '{source_id}'; known: {known}")
     return IngestRunResponse(results=await run_sources((spec,), get_settings()))
+
+
+@router.post("/parse-all", response_model=ParseReport)
+async def ingest_parse_all() -> ParseReport:
+    return await parse_all(get_settings())
+
+
+class EntityCountsResponse(BaseModel):
+    documents: int
+    sections: int
+    versions: int
+    releases: int
+    issues: int
+    pull_requests: int
+    discussions: int
+    roadmap_items: int
+    version_diffs: int
+    documents_by_tier: dict[str, int]
+
+
+@router.get("/entities", response_model=EntityCountsResponse)
+async def entity_counts() -> EntityCountsResponse:
+    async with SessionLocal() as session:
+
+        async def count(model: type) -> int:
+            return (
+                await session.scalar(select(func.count()).select_from(model))
+            ) or 0
+
+        tier_rows = (
+            await session.execute(
+                select(Document.tier, func.count(Document.id)).group_by(Document.tier)
+            )
+        ).all()
+        return EntityCountsResponse(
+            documents=await count(Document),
+            sections=await count(Section),
+            versions=await count(Version),
+            releases=await count(Release),
+            issues=await count(Issue),
+            pull_requests=await count(PullRequest),
+            discussions=await count(Discussion),
+            roadmap_items=await count(RoadmapItem),
+            version_diffs=await count(VersionDiff),
+            documents_by_tier={str(tier): n for tier, n in tier_rows},
+        )
 
 
 @router.get("/snapshots", response_model=SnapshotSummaryResponse)

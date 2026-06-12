@@ -100,6 +100,13 @@ REGISTRY: tuple[SourceSpec, ...] = (
         url="https://docs.eudi.dev/latest/reference-implementation/roadmap/",
     ),
     SourceSpec(
+        id="refimpl_feature_map",
+        title="Reference implementation feature map (maturity states)",
+        tier=Tier.roadmap,
+        method=FetchMethod.crawl,
+        url="https://docs.eudi.dev/latest/reference-implementation/feature-map/",
+    ),
+    SourceSpec(
         id="refimpl_repos_list",
         title="Reference implementation repositories list",
         tier=Tier.roadmap,
