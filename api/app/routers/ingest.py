@@ -1,0 +1,63 @@
+"""Ingestion endpoints (Phase 1): trigger collectors, inspect snapshot state."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import func, select
+
+from app.collectors.registry import REGISTRY, get_source
+from app.collectors.runner import SourceRunReport, run_all, run_sources
+from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.models.source import SourceSnapshot
+
+router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+
+class IngestRunResponse(BaseModel):
+    results: list[SourceRunReport]
+
+
+class SnapshotSummaryRow(BaseModel):
+    source_id: str
+    snapshots: int
+    last_seen_at: str
+
+
+class SnapshotSummaryResponse(BaseModel):
+    total: int
+    sources: list[SnapshotSummaryRow]
+
+
+@router.post("/run-all", response_model=IngestRunResponse)
+async def ingest_run_all() -> IngestRunResponse:
+    return IngestRunResponse(results=await run_all(get_settings()))
+
+
+@router.post("/run/{source_id}", response_model=IngestRunResponse)
+async def ingest_run_one(source_id: str) -> IngestRunResponse:
+    spec = get_source(source_id)
+    if spec is None:
+        known = ", ".join(s.id for s in REGISTRY)
+        raise HTTPException(status_code=404, detail=f"unknown source '{source_id}'; known: {known}")
+    return IngestRunResponse(results=await run_sources((spec,), get_settings()))
+
+
+@router.get("/snapshots", response_model=SnapshotSummaryResponse)
+async def snapshot_summary() -> SnapshotSummaryResponse:
+    async with SessionLocal() as session:
+        rows = (
+            await session.execute(
+                select(
+                    SourceSnapshot.source_id,
+                    func.count(SourceSnapshot.id),
+                    func.max(SourceSnapshot.last_seen_at),
+                ).group_by(SourceSnapshot.source_id)
+            )
+        ).all()
+    sources = [
+        SnapshotSummaryRow(source_id=sid, snapshots=n, last_seen_at=str(seen))
+        for sid, n, seen in rows
+    ]
+    return SnapshotSummaryResponse(total=sum(r.snapshots for r in sources), sources=sources)

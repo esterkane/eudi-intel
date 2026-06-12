@@ -1,0 +1,28 @@
+# env & secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# local repo mirrors used to study source structure during dev
+reference/
+
+# data
+*.db
+qdrant_storage/
+pgdata/
+
+# os
+.DS_Store

@@ -1,0 +1,117 @@
+# EUDI Intelligence & Authoring Workbench — local single-user stack.
+# Ollama runs on the HOST (default) for reliable RTX 4060 GPU access; the API/worker
+# reach it via host.docker.internal. An optional GPU-in-compose Ollama service is at the
+# bottom (commented) if you have nvidia-container-toolkit configured.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eudi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eudi}
+      POSTGRES_DB: ${POSTGRES_DB:-eudi}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eudi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - qdrantdata:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./api
+    env_file: .env
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-eudi}:${POSTGRES_PASSWORD:-eudi}@postgres:5432/${POSTGRES_DB:-eudi}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+    ports: ["8000:8000"]
+    volumes:
+      - repodata:/data/repos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach host Ollama on Linux
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./api
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+    env_file: .env
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-eudi}:${POSTGRES_PASSWORD:-eudi}@postgres:5432/${POSTGRES_DB:-eudi}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - repodata:/data/repos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api: { condition: service_started }
+
+  beat:
+    build: ./api
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-eudi}:${POSTGRES_PASSWORD:-eudi}@postgres:5432/${POSTGRES_DB:-eudi}
+    depends_on:
+      redis: { condition: service_healthy }
+
+  web:
+    build: ./web
+    env_file: .env
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_started }
+
+volumes:
+  pgdata:
+  qdrantdata:
+  repodata:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIONAL: run Ollama in-compose with GPU (needs nvidia-container-toolkit).
+# Prefer running Ollama on the host instead; uncomment only if you know your
+# Docker GPU passthrough works. Then set OLLAMA_BASE_URL=http://ollama:11434.
+#
+#  ollama:
+#    image: ollama/ollama:latest
+#    ports: ["11434:11434"]
+#    volumes:
+#      - ollamadata:/root/.ollama
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: 1
+#              capabilities: [gpu]
+# volumes:  ollamadata:

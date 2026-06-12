@@ -1,0 +1,30 @@
+{
+  "_comment": "MCP servers for Claude Code during development of this repo. They run on the HOST and target the services exposed by docker-compose (postgres:5432, qdrant:6333). Verify package tags at install time. Postgres alternative: 'postgres-mcp' (crystaldba) is a richer option if the reference server is unavailable.",
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://eudi:eudi@localhost:5432/eudi"
+      ]
+    },
+    "qdrant": {
+      "command": "uvx",
+      "args": ["mcp-server-qdrant"],
+      "env": {
+        "QDRANT_URL": "http://localhost:6333",
+        "COLLECTION_NAME": "eudi_latest",
+        "EMBEDDING_MODEL": "BAAI/bge-m3"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  }
+}
