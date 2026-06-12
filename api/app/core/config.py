@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     # ── Ingestion ────────────────────────────────────────────────────────────
     repos_dir: str = "/data/repos"  # git mirror directory (compose volume)
 
+    # ── Ingestion cadence (Celery Beat; seconds) ────────────────────────────
+    poll_feeds_interval: int = 10800  # release/tag/commit atom feeds: 3h
+    scrape_issues_interval: int = 21600  # issue/PR/discussion HTML: 6h
+    crawl_docs_interval: int = 86400  # docs/conformance/EC crawl: daily
+    git_pull_interval: int = 43200  # repo clone/pull refresh: 12h
+
 
 @lru_cache
 def get_settings() -> Settings:

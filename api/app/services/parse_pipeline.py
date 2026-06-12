@@ -206,29 +206,54 @@ def _semver_key(tag: str) -> tuple[int, ...]:
     return tuple(int(n) for n in numbers[:4]) or (0,)
 
 
-async def _compute_latest_diff(
-    session: AsyncSession, settings: Settings, report: ParseReport
-) -> None:
-    """Diff the two newest ARF tags (BUILD_PLAN gate: version bump → stored diff)."""
-    tags = list(
-        await session.scalars(select(Version.tag).where(Version.source_id == "arf_repo"))
-    )
-    if len(tags) < 2:
-        report.errors.append("arf_repo: fewer than two versions known, no diff computed")
-        return
-    ordered = sorted(tags, key=_semver_key)
-    from_tag, to_tag = ordered[-2], ordered[-1]
-    mirror = Path(settings.repos_dir) / "arf_repo"
-    await compute_version_diff(
-        session, source_id="arf_repo", mirror=mirror, from_tag=from_tag, to_tag=to_tag
-    )
-    report.diffs_computed.append(f"arf_repo: {from_tag} → {to_tag}")
+async def reingest_new_tags(settings: Settings, report: ParseReport | None = None) -> ParseReport:
+    """Targeted re-ingest on version bumps (BUILD_PLAN Phase 8): when the two
+    newest ARF tags have no stored diff, compute it (shallow tag fetch) and
+    ensure the newest tag is indexed in the history collection. Idempotent —
+    safe to call on every feeds poll."""
+    report = report or ParseReport()
+    async with SessionLocal() as session:
+        try:
+            tags = list(
+                await session.scalars(select(Version.tag).where(Version.source_id == "arf_repo"))
+            )
+            if len(tags) < 2:
+                report.errors.append("arf_repo: fewer than two versions known, no diff computed")
+                return report
+            ordered = sorted(tags, key=_semver_key)
+            from_tag, to_tag = ordered[-2], ordered[-1]
+            mirror = Path(settings.repos_dir) / "arf_repo"
+            await compute_version_diff(
+                session, source_id="arf_repo", mirror=mirror, from_tag=from_tag, to_tag=to_tag
+            )
+            await session.commit()
+            report.diffs_computed.append(f"arf_repo: {from_tag} → {to_tag}")
+        except Exception as exc:  # noqa: BLE001 - diff failure is reportable, not fatal
+            await session.rollback()
+            report.errors.append(f"version diff: {exc}")
+            return report
+    # history index for the newest tag (skips when already present)
+    from app.services.vector_index import index_history_tag
+
+    try:
+        indexed = await index_history_tag(settings, to_tag)
+        if indexed:
+            report.diffs_computed.append(f"history indexed {to_tag}: {indexed} chunks")
+    except Exception as exc:  # noqa: BLE001 - reportable, not fatal
+        report.errors.append(f"history index {to_tag}: {exc}")
+    return report
 
 
-async def parse_all(settings: Settings) -> ParseReport:
+async def parse_for_methods(
+    settings: Settings, methods: set[FetchMethod]
+) -> ParseReport:
+    """Parse latest snapshots/mirrors for sources of the given methods only —
+    the unit of work for the per-cadence Beat tasks."""
     report = ParseReport()
     async with SessionLocal() as session:
         for spec in REGISTRY:
+            if spec.method not in methods:
+                continue
             # Parsing failures must not abort the whole run; report per source.
             try:
                 if spec.method == FetchMethod.git:
@@ -243,10 +268,12 @@ async def parse_all(settings: Settings) -> ParseReport:
             except Exception as exc:  # noqa: BLE001 - isolate per-source failures
                 await session.rollback()
                 report.errors.append(f"{spec.id}: {exc}")
-        try:
-            await _compute_latest_diff(session, settings, report)
-            await session.commit()
-        except Exception as exc:  # noqa: BLE001 - diff failure is reportable, not fatal
-            await session.rollback()
-            report.errors.append(f"version diff: {exc}")
     return report
+
+
+async def parse_all(settings: Settings) -> ParseReport:
+    report = await parse_for_methods(
+        settings,
+        {FetchMethod.git, FetchMethod.crawl, FetchMethod.feed, FetchMethod.scrape},
+    )
+    return await reingest_new_tags(settings, report)

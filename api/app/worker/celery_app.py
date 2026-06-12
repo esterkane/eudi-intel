@@ -26,5 +26,27 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
 )
 
+# Phase 8: polling cadences from .env (run-and-test + eudi-source-registry
+# freshness policy). Feeds several times daily, scrape ~6h, crawl daily,
+# git pull ~12h. The feeds task triggers targeted re-ingest on new tags.
+celery_app.conf.beat_schedule = {
+    "collect-feeds": {
+        "task": "collect_and_parse_feeds",
+        "schedule": _settings.poll_feeds_interval,
+    },
+    "collect-scrape": {
+        "task": "collect_and_parse_scrape",
+        "schedule": _settings.scrape_issues_interval,
+    },
+    "collect-crawl": {
+        "task": "collect_and_parse_crawl",
+        "schedule": _settings.crawl_docs_interval,
+    },
+    "collect-git": {
+        "task": "collect_and_parse_git",
+        "schedule": _settings.git_pull_interval,
+    },
+}
+
 # Alias for Celery's app autodiscovery via `-A app.worker.celery_app`.
 app = celery_app
