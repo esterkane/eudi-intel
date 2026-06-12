@@ -40,6 +40,7 @@ class Settings(BaseSettings):
 
     # ── Frontend ────────────────────────────────────────────────────────────
     next_public_api_url: str = "http://localhost:8000"
+    cors_origins: str = "http://localhost:3000"  # comma-separated browser origins
 
     # ── GitHub (empty = token-free mode) ────────────────────────────────────
     github_token: str = ""

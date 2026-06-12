@@ -5,6 +5,7 @@ functions, no FastAPI coupling. Search is hybrid by design — never vector-only
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from pydantic import BaseModel
@@ -202,7 +203,9 @@ async def vector_search(
     query: str, filters: SearchFilters, limit: int, settings: Settings
 ) -> tuple[list[Candidate], list[Candidate]]:
     """Dense and sparse result lists from one query embedding."""
-    embedded = get_embedder().embed([query])[0]
+    # CPU-bound torch call — keep it off the event loop so concurrent
+    # requests (e.g. autosuggest while a search runs) stay responsive.
+    embedded = (await asyncio.to_thread(get_embedder().embed, [query]))[0]
     client = get_qdrant()
     qfilter = _qdrant_filter(filters)
     dense_res = await client.query_points(
@@ -255,7 +258,8 @@ async def hybrid_search(
 
     if settings.rerank_enabled and top_keys:
         contents = [candidates[k].content for k in top_keys]
-        rerank_scores = get_reranker().score(query, contents)
+        # CPU-bound cross-encoder — off the event loop (see vector_search)
+        rerank_scores = await asyncio.to_thread(get_reranker().score, query, contents)
         scored = [(score, candidates[key]) for key, score in zip(top_keys, rerank_scores)]
     else:
         scored = [(fused[key], candidates[key]) for key in top_keys]
