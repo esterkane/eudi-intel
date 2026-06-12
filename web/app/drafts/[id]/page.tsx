@@ -43,9 +43,10 @@ interface Draft {
 export default async function DraftPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const resp = await fetch(`${API_BASE}/author/draft/${params.id}`, {
+  const { id } = await params;
+  const resp = await fetch(`${API_BASE}/author/draft/${id}`, {
     cache: "no-store",
   });
   if (!resp.ok) {

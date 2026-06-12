@@ -13,7 +13,8 @@ RUN apt-get update \
 
 # CPU-only torch wheel first: keeps the image lean and makes GPU use
 # structurally impossible (the GPU is reserved for the LLM via host Ollama).
-RUN pip install --upgrade pip \
+# wheel pinned past CVE-2026-24049.
+RUN pip install --upgrade pip "wheel>=0.46.2" \
     && pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install the package (and its deps) from source.
