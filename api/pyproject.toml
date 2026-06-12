@@ -51,9 +51,10 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 
-# Celery, Trafilatura and FlagEmbedding ship no py.typed marker / stubs.
+# Celery/Trafilatura/FlagEmbedding ship no stubs; torch/transformers live only
+# in the Docker image (embed extra), not in host dev venvs.
 [[tool.mypy.overrides]]
-module = ["celery.*", "trafilatura.*", "FlagEmbedding.*"]
+module = ["celery.*", "trafilatura.*", "FlagEmbedding.*", "transformers.*", "torch.*"]
 ignore_missing_imports = true
 
 # Celery's @task decorator is untyped; the task body stays fully typed.

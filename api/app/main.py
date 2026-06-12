@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from app.routers import health, ingest
+from app.routers import health, ingest, search
 
 app = FastAPI(
     title="EUDI Intelligence & Authoring Workbench",
@@ -13,6 +13,7 @@ app = FastAPI(
 )
 app.include_router(health.router)
 app.include_router(ingest.router)
+app.include_router(search.router)
 
 
 class RootResponse(BaseModel):
