@@ -65,6 +65,9 @@ class Section(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     token_estimate: Mapped[int] = mapped_column(Integer)
     tier: Mapped[Tier] = mapped_column(String(16))  # denormalized for retrieval filters
+    # content_hash at the time of the last successful vector upsert; re-embed
+    # only when it differs (ingestion-pipeline idempotency rule).
+    embedded_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     document: Mapped[Document] = relationship(back_populates="sections")
 

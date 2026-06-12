@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     rerank_enabled: bool = True
     rerank_candidates: int = 30
+    embed_batch_size: int = 16
 
     # ── Frontend ────────────────────────────────────────────────────────────
     next_public_api_url: str = "http://localhost:8000"

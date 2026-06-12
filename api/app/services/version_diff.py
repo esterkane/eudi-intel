@@ -1,4 +1,4 @@
-﻿"""Section-level diff between two tags of a docs repo (ingestion-pipeline §6).
+"""Section-level diff between two tags of a docs repo (ingestion-pipeline §6).
 
 Fetches each tag shallowly into the existing mirror (still no REST API), parses
 the markdown tree at both tags, and compares section content hashes per file.
@@ -25,20 +25,21 @@ async def _fetch_tag(mirror: Path, tag: str) -> None:
     )
 
 
-async def _markdown_files_at(mirror: Path, tag: str) -> list[str]:
+async def markdown_files_at(mirror: Path, tag: str) -> list[str]:
+    """All .md paths in the repo tree at a tag (also used by history indexing)."""
     out = await run_git("ls-tree", "-r", "--name-only", tag, cwd=mirror)
     return [p for p in out.splitlines() if p.endswith(".md")]
 
 
-async def _file_at(mirror: Path, tag: str, path: str) -> str:
+async def file_at(mirror: Path, tag: str, path: str) -> str:
     return await run_git("show", f"{tag}:{path}", cwd=mirror)
 
 
 async def _section_hashes_at(mirror: Path, tag: str) -> dict[str, dict[str, str]]:
     """{file: {section_path: combined content hash}} for all .md files at a tag."""
     result: dict[str, dict[str, str]] = {}
-    for path in await _markdown_files_at(mirror, tag):
-        text = await _file_at(mirror, tag, path)
+    for path in await markdown_files_at(mirror, tag):
+        text = await file_at(mirror, tag, path)
         per_path: dict[str, str] = {}
         for chunk in chunk_markdown(text, base_url=path):
             # oversize sections yield several chunks per path — combine hashes

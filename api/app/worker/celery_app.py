@@ -18,6 +18,7 @@ celery_app = Celery(
     "eudi",
     broker=_settings.redis_url,
     backend=_settings.redis_url,
+    include=["app.worker.tasks"],
 )
 celery_app.conf.update(
     task_track_started=True,

@@ -51,6 +51,15 @@ def _clean_heading(heading: str) -> str:
     return text.strip()
 
 
+_FIRST_H1 = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+
+
+def doc_title(markdown: str, fallback: str) -> str:
+    """First H1 as a clean document title (comments stripped), else fallback."""
+    match = _FIRST_H1.search(markdown)
+    return _clean_heading(match.group(1)) if match else fallback
+
+
 def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 

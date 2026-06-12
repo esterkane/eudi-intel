@@ -41,6 +41,7 @@ async def upsert_document(
     doc = await session.scalar(select(Document).where(Document.url == url))
     if doc is not None and doc.content_hash == content_hash:
         doc.last_seen = now
+        doc.title = title[:512]  # metadata refresh (e.g. title-cleaning fixes)
         return "unchanged"
 
     outcome: UpsertOutcome

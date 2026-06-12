@@ -27,7 +27,7 @@ from app.parsers.github_lists import (
     parse_pull_list,
 )
 from app.parsers.html import chunk_html, html_to_markdown
-from app.parsers.markdown import chunk_markdown
+from app.parsers.markdown import chunk_markdown, doc_title
 from app.parsers.tiering import tier_for_repo_file
 from app.services.entity_upserts import (
     upsert_document,
@@ -46,7 +46,6 @@ _FEED_TO_REPO = {
     "sts_releases_feed": "sts_repo",
 }
 _GITHUB_REPO = re.compile(r"https://github\.com/([^/]+/[^/.]+)")
-_FIRST_H1 = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 
 
 class ParseReport(BaseModel):
@@ -72,9 +71,6 @@ async def _latest_snapshot(session: AsyncSession, source_id: str) -> SourceSnaps
     return snapshot
 
 
-def _doc_title(markdown: str, fallback: str) -> str:
-    match = _FIRST_H1.search(markdown)
-    return match.group(1) if match else fallback
 
 
 def _repo_slug(spec: SourceSpec) -> str:
@@ -102,7 +98,7 @@ async def _parse_repo_docs(
             session,
             source_id=spec.id,
             url=url,
-            title=_doc_title(text, path.name),
+            title=doc_title(text, path.name),
             tier=tier,
             doc_type="markdown",
             content_hash=hashlib.sha256(text.encode()).hexdigest(),
@@ -130,7 +126,7 @@ async def _parse_crawl_page(
         session,
         source_id=spec.id,
         url=spec.url,
-        title=_doc_title(markdown, spec.title),
+        title=doc_title(markdown, spec.title),
         tier=spec.tier,
         doc_type="html",
         content_hash=hashlib.sha256(markdown.encode()).hexdigest(),

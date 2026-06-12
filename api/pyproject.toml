@@ -19,6 +19,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Heavy CPU-inference deps (torch via FlagEmbedding). Installed in the Docker
+# image; host dev venvs skip them — unit tests patch the embedder.
+embed = [
+  "FlagEmbedding>=1.3",
+]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
@@ -46,10 +51,15 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 
-# Celery and Trafilatura ship no py.typed marker / stubs.
+# Celery, Trafilatura and FlagEmbedding ship no py.typed marker / stubs.
 [[tool.mypy.overrides]]
-module = ["celery.*", "trafilatura.*"]
+module = ["celery.*", "trafilatura.*", "FlagEmbedding.*"]
 ignore_missing_imports = true
+
+# Celery's @task decorator is untyped; the task body stays fully typed.
+[[tool.mypy.overrides]]
+module = ["app.worker.tasks"]
+disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

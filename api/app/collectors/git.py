@@ -1,4 +1,4 @@
-﻿"""git collector — clone --depth 1 / fetch a repo mirror (no REST, no rate limit).
+"""git collector — clone --depth 1 / fetch a repo mirror (no REST, no rate limit).
 
 The repo content itself is consumed by Phase 2 parsers from the mirror directory;
 the snapshot records the HEAD commit as the content hash so re-runs without new

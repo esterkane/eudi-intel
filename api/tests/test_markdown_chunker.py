@@ -75,6 +75,14 @@ def test_oversize_section_splits_with_shared_anchor() -> None:
     assert [c.order_index for c in chunks] == list(range(len(chunks)))
 
 
+def test_doc_title_strips_comments() -> None:
+    from app.parsers.markdown import doc_title
+
+    text = "intro\n\n# ANNEX 2.02 - High-Level Requirements by topic <!-- omit from toc -->\n"
+    assert doc_title(text, "fallback.md") == "ANNEX 2.02 - High-Level Requirements by topic"
+    assert doc_title("no heading here", "fallback.md") == "fallback.md"
+
+
 def test_hash_stability() -> None:
     a = chunk_markdown(SAMPLE, BASE)
     b = chunk_markdown(SAMPLE, BASE)

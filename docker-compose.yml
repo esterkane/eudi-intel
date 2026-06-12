@@ -47,9 +47,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-eudi}:${POSTGRES_PASSWORD:-eudi}@postgres:5432/${POSTGRES_DB:-eudi}
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
+      HF_HOME: /data/models
     ports: ["8000:8000"]
     volumes:
       - repodata:/data/repos
+      - modeldata:/data/models
     extra_hosts:
       - "host.docker.internal:host-gateway"   # lets the container reach host Ollama on Linux
     depends_on:
@@ -66,8 +68,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-eudi}:${POSTGRES_PASSWORD:-eudi}@postgres:5432/${POSTGRES_DB:-eudi}
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
+      HF_HOME: /data/models
     volumes:
       - repodata:/data/repos
+      - modeldata:/data/models
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -96,6 +100,7 @@ volumes:
   pgdata:
   qdrantdata:
   repodata:
+  modeldata:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL: run Ollama in-compose with GPU (needs nvidia-container-toolkit).

@@ -102,6 +102,56 @@ async def entity_counts() -> EntityCountsResponse:
         )
 
 
+class EmbedTriggerResponse(BaseModel):
+    task_id: str
+
+
+class EmbedStatusResponse(BaseModel):
+    sections_total: int
+    sections_pending: int
+    latest_points: int
+    history_points: int
+
+
+@router.post("/embed", response_model=EmbedTriggerResponse)
+async def trigger_embed() -> EmbedTriggerResponse:
+    """Enqueue the embed-and-index task in the Celery worker (background)."""
+    from app.worker.tasks import embed_and_index
+
+    result = embed_and_index.delay()
+    return EmbedTriggerResponse(task_id=result.id)
+
+
+@router.get("/embed/status", response_model=EmbedStatusResponse)
+async def embed_status() -> EmbedStatusResponse:
+    from app.db.qdrant import count_points
+
+    settings = get_settings()
+    async with SessionLocal() as session:
+        total = (await session.scalar(select(func.count()).select_from(Section))) or 0
+        pending = (
+            await session.scalar(
+                select(func.count())
+                .select_from(Section)
+                .where(
+                    (Section.embedded_hash.is_(None))
+                    | (Section.embedded_hash != Section.content_hash)
+                )
+            )
+        ) or 0
+    try:
+        latest = await count_points(settings.qdrant_latest_collection)
+        history = await count_points(settings.qdrant_history_collection)
+    except Exception:  # noqa: BLE001 - collections may not exist before first run
+        latest = history = 0
+    return EmbedStatusResponse(
+        sections_total=total,
+        sections_pending=pending,
+        latest_points=latest,
+        history_points=history,
+    )
+
+
 @router.get("/snapshots", response_model=SnapshotSummaryResponse)
 async def snapshot_summary() -> SnapshotSummaryResponse:
     async with SessionLocal() as session:
