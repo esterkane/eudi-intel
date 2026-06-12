@@ -16,18 +16,19 @@ from __future__ import annotations
 import logging
 import re
 
-import httpx
 from pydantic import BaseModel
 
 from app.core.config import Settings
+from app.services.llm import LlmUnavailableError, chat
 from app.services.retrieval import Citation, SearchFilters, SearchHit, hybrid_search
+
+__all__ = ["GroundedAnswer", "LlmUnavailableError", "answer_query"]
 
 logger = logging.getLogger(__name__)
 
 REFUSAL_PHRASE = "not supported by sources"
 
 _MARKER = re.compile(r"\[(\d+)\]")
-_GEN_TIMEOUT_SECONDS = 300.0
 # Token budget at ~4 chars/token: reserve room for the system prompt, the
 # question, chat overhead, and the answer itself; the rest carries evidence.
 _PROMPT_OVERHEAD_TOKENS = 700
@@ -63,10 +64,6 @@ class GroundedAnswer(BaseModel):
     invalid_markers: list[int]  # markers that resolved to nothing (dropped)
     evidence: list[EvidenceBlock]  # full retrieved set, for UI display
     evidence_trimmed: bool
-
-
-class LlmUnavailableError(RuntimeError):
-    """Raised when Ollama cannot be reached — surfaced as 503, never a hang."""
 
 
 _AUTHORITY_TIERS = ("normative", "reference")
@@ -154,31 +151,6 @@ def is_refusal(answer: str) -> bool:
     return REFUSAL_PHRASE in answer.lower()
 
 
-async def _call_ollama(prompt: str, settings: Settings) -> str:
-    payload = {
-        "model": settings.gen_model,
-        "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": False,
-        "think": False,
-        "options": {
-            "num_ctx": settings.gen_context_tokens,
-            "temperature": 0.1,
-            "num_predict": _ANSWER_RESERVE_TOKENS,
-        },
-    }
-    try:
-        async with httpx.AsyncClient(timeout=_GEN_TIMEOUT_SECONDS) as client:
-            resp = await client.post(f"{settings.ollama_base_url}/api/chat", json=payload)
-            resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise LlmUnavailableError(f"Ollama unavailable at {settings.ollama_base_url}: {exc}") from exc
-    content = str(resp.json().get("message", {}).get("content", "")).strip()
-    return content
-
-
 _POOL_SIZE = 30  # full reranked pool; evidence is selected tier-aware from it
 
 
@@ -202,7 +174,9 @@ async def answer_query(
             evidence_trimmed=trimmed,
         )
 
-    answer = await _call_ollama(render_prompt(query, blocks), settings)
+    answer = await chat(
+        _SYSTEM_PROMPT, render_prompt(query, blocks), settings, max_tokens=_ANSWER_RESERVE_TOKENS
+    )
     refusal = is_refusal(answer)
     citations, cited, invalid = ([], [], []) if refusal else parse_citations(answer, blocks)
     if not refusal and not citations:

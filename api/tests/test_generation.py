@@ -97,11 +97,13 @@ def patched_search(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     ) -> list[SearchHit]:
         return list(state["hits"])  # type: ignore[arg-type]
 
-    async def fake_llm(prompt: str, settings: object) -> str:
+    async def fake_llm(
+        system: str, user: str, settings: object, max_tokens: int = 1024
+    ) -> str:
         return str(state["llm_answer"])
 
     monkeypatch.setattr(gen, "hybrid_search", fake_search)
-    monkeypatch.setattr(gen, "_call_ollama", fake_llm)
+    monkeypatch.setattr(gen, "chat", fake_llm)
     return state
 
 
@@ -136,10 +138,12 @@ def test_no_evidence_refuses_without_llm_call(
 ) -> None:
     patched_search["hits"] = []
 
-    async def explode(prompt: str, settings: object) -> str:
+    async def explode(
+        system: str, user: str, settings: object, max_tokens: int = 1024
+    ) -> str:
         raise AssertionError("LLM must not be called without evidence")
 
-    monkeypatch.setattr(gen, "_call_ollama", explode)
+    monkeypatch.setattr(gen, "chat", explode)
     body = TestClient(app).post("/answer", json={"query": "anything?"}).json()
     assert body["insufficient_evidence"] is True
     assert body["evidence"] == []
@@ -148,10 +152,12 @@ def test_no_evidence_refuses_without_llm_call(
 def test_llm_down_returns_503(
     patched_search: dict[str, object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    async def down(prompt: str, settings: object) -> str:
+    async def down(
+        system: str, user: str, settings: object, max_tokens: int = 1024
+    ) -> str:
         raise gen.LlmUnavailableError("connection refused")
 
-    monkeypatch.setattr(gen, "_call_ollama", down)
+    monkeypatch.setattr(gen, "chat", down)
     resp = TestClient(app).post("/answer", json={"query": "anything?"})
     assert resp.status_code == 503
     assert "connection refused" in resp.json()["detail"]

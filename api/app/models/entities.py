@@ -155,6 +155,25 @@ class RoadmapItem(Base):
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class GeneratedDraft(Base):
+    """Evidence-backed draft (FAQ / playbook / KB article). Created as
+    status='draft' with a full source_basis audit trail; only the explicit
+    finalize action may set status='published' (grounded-authoring skill)."""
+
+    __tablename__ = "generated_drafts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doc_type: Mapped[str] = mapped_column(String(16))  # faq | playbook | kb_article
+    title: Mapped[str] = mapped_column(String(512))
+    status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | published
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # [{heading, content, cited_indices, citations[], non_normative, uncited}]
+    sections: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    # {model, generated_at, query, evidence: [{citation fields..., content_hash}]}
+    source_basis: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
 class VersionDiff(Base):
     """Section-level diff between two tags of a docs repo ("what changed")."""
 

@@ -5,6 +5,7 @@ const LINKS = [
   { href: "/roadmap", label: "Roadmap" },
   { href: "/issues", label: "Open Issues" },
   { href: "/activity", label: "Activity" },
+  { href: "/drafts", label: "Drafts" },
 ];
 
 export default function Nav() {

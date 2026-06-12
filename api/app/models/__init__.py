@@ -9,6 +9,7 @@ GeneratedDraft.
 from app.models.entities import (
     Discussion,
     Document,
+    GeneratedDraft,
     Issue,
     Maturity,
     Milestone,
@@ -25,6 +26,7 @@ __all__ = [
     "Discussion",
     "Document",
     "FetchMethod",
+    "GeneratedDraft",
     "Issue",
     "Maturity",
     "Milestone",
