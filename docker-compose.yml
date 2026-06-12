@@ -92,6 +92,7 @@ services:
     env_file: .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      API_INTERNAL_URL: http://api:8000   # server components fetch inside the compose network
     ports: ["3000:3000"]
     depends_on:
       api: { condition: service_started }
