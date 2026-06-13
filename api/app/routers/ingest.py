@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -22,6 +22,7 @@ from app.models.entities import (
     VersionDiff,
 )
 from app.models.source import SourceSnapshot
+from app.services.deep_ingest import DeepIngestReport, deep_ingest_activity
 from app.services.parse_pipeline import ParseReport, parse_all
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -59,6 +60,12 @@ async def ingest_run_one(source_id: str) -> IngestRunResponse:
 @router.post("/parse-all", response_model=ParseReport)
 async def ingest_parse_all() -> ParseReport:
     return await parse_all(get_settings())
+
+
+@router.post("/deep-activity", response_model=DeepIngestReport)
+async def ingest_deep_activity(limit: int = Query(default=40, ge=1, le=200)) -> DeepIngestReport:
+    """Phase S1: fetch issue/PR/discussion bodies into the searchable corpus."""
+    return await deep_ingest_activity(get_settings(), limit=limit)
 
 
 class EntityCountsResponse(BaseModel):

@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # ── Ingestion ────────────────────────────────────────────────────────────
     repos_dir: str = "/data/repos"  # git mirror directory (compose volume)
 
+    deep_activity_limit: int = 40  # per kind: how many recent items to deep-ingest (S1)
+
     # ── Ingestion cadence (Celery Beat; seconds) ────────────────────────────
     poll_feeds_interval: int = 10800  # release/tag/commit atom feeds: 3h
     scrape_issues_interval: int = 21600  # issue/PR/discussion HTML: 6h

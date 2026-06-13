@@ -139,6 +139,14 @@ eudi-intel/
 - `dashboard-views` — the four live views and exactly where each card's data and click-through come from.
 - `grounded-authoring` — FAQ/playbook/KB generation, citation inheritance, source-basis, publish workflow.
 - `run-and-test` — compose bring-up, smoke tests, integration tests, grounding/eval harness, gates.
+- `entity-summarization` — structured, cached, grounded summaries of issues/PRs/discussions/releases (support track S2).
+- `semantic-recall` — domain glossary/alias map + LLM query expansion for vague support queries (support track S3).
+- `support-console` — the support lead's fast triage surface: answer + related activity + playbook + glossary (support track S4).
+
+## Support-lead capability track (docs/SUPPORT_PLAN.md)
+A second audience — the EUDI-Wallet Technical Support Lead supporting B2B credential providers/verifiers.
+Phases S1–S4 layer deep activity ingestion, structured summaries, semantic recall, and a support console
+onto the v1 workbench. Same hard rules (token-free, GPU=LLM-only, provenance everywhere).
 
 ## MCP tools available during development (see `.mcp.json`)
 - **postgres** — inspect schema, run queries, verify ingestion landed.
