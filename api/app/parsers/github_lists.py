@@ -51,6 +51,53 @@ def _walk_for_issues(node: Any, out: list[dict[str, Any]]) -> None:
             _walk_for_issues(value, out)
 
 
+def _state_from_json(obj: dict[str, Any]) -> str:
+    if obj.get("merged_at"):
+        return "merged"
+    return str(obj.get("state", "open")).lower()
+
+
+def parse_issue_list_json(payload: str, repo: str) -> list[GithubListItem]:
+    """Authenticated REST issues array → items. GitHub's /issues endpoint also
+    returns PRs (they carry a 'pull_request' key); those are excluded here."""
+    data = json.loads(payload)
+    items: list[GithubListItem] = []
+    for obj in data if isinstance(data, list) else []:
+        if "pull_request" in obj:
+            continue
+        updated = obj.get("updated_at")
+        items.append(
+            GithubListItem(
+                repo=repo,
+                number=int(obj["number"]),
+                title=str(obj.get("title", "")),
+                state=_state_from_json(obj),
+                url=str(obj.get("html_url") or f"https://github.com/{repo}/issues/{obj['number']}"),
+                updated_at=datetime.fromisoformat(updated) if updated else None,
+            )
+        )
+    return items
+
+
+def parse_pull_list_json(payload: str, repo: str) -> list[GithubListItem]:
+    """Authenticated REST pulls array → items."""
+    data = json.loads(payload)
+    items: list[GithubListItem] = []
+    for obj in data if isinstance(data, list) else []:
+        updated = obj.get("updated_at")
+        items.append(
+            GithubListItem(
+                repo=repo,
+                number=int(obj["number"]),
+                title=str(obj.get("title", "")),
+                state=_state_from_json(obj),
+                url=str(obj.get("html_url") or f"https://github.com/{repo}/pull/{obj['number']}"),
+                updated_at=datetime.fromisoformat(updated) if updated else None,
+            )
+        )
+    return items
+
+
 def parse_issue_list(page_html: str, repo: str) -> list[GithubListItem]:
     match = _EMBEDDED_DATA.search(page_html)
     if match is None:

@@ -24,7 +24,9 @@ from app.parsers.feeds import parse_atom, tag_from_release_url
 from app.parsers.github_lists import (
     parse_discussion_list,
     parse_issue_list,
+    parse_issue_list_json,
     parse_pull_list,
+    parse_pull_list_json,
 )
 from app.parsers.html import chunk_html, html_to_markdown
 from app.parsers.markdown import chunk_markdown, doc_title
@@ -181,21 +183,34 @@ async def _parse_feed(session: AsyncSession, spec: SourceSpec, report: ParseRepo
         # snapshots in Phase 6; no entity for individual commits.
 
 
+def _is_json_payload(payload: str) -> bool:
+    return payload.lstrip()[:1] in ("[", "{")
+
+
 async def _parse_scrape(session: AsyncSession, spec: SourceSpec, report: ParseReport) -> None:
     snapshot = await _latest_snapshot(session, spec.id)
     if snapshot is None or snapshot.payload is None:
         report.errors.append(f"{spec.id}: no snapshot to parse")
         return
     repo = _repo_slug(spec)
+    # Token-free snapshots are HTML; with a token the snapshot is REST JSON.
+    rest = _is_json_payload(snapshot.payload)
     if spec.id.endswith("_issues"):
-        report.issues_new += await upsert_github_items(
-            session, parse_issue_list(snapshot.payload, repo), Issue
+        items = (
+            parse_issue_list_json(snapshot.payload, repo)
+            if rest
+            else parse_issue_list(snapshot.payload, repo)
         )
+        report.issues_new += await upsert_github_items(session, items, Issue)
     elif spec.id.endswith("_pulls"):
-        report.pulls_new += await upsert_github_items(
-            session, parse_pull_list(snapshot.payload, repo), PullRequest
+        items = (
+            parse_pull_list_json(snapshot.payload, repo)
+            if rest
+            else parse_pull_list(snapshot.payload, repo)
         )
+        report.pulls_new += await upsert_github_items(session, items, PullRequest)
     elif spec.id.endswith("_discussions"):
+        # Discussions are not in the REST bucket → always HTML.
         report.discussions_new += await upsert_github_items(
             session, parse_discussion_list(snapshot.payload, repo), Discussion
         )

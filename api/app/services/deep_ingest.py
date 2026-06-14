@@ -1,23 +1,25 @@
-"""Phase S1: deep activity ingestion — issue / PR / discussion BODIES.
+"""Deep activity ingestion — issue / PR / discussion BODIES (S1) + full threads (G1).
 
-Phases 1–2 capture only list metadata (title/state/url); the body and thread of
-an item are the support gold and are not searchable. This fetches each item's
-page (token-free HTML), extracts the readable content (Trafilatura), and upserts
-it as a **community-tier** Document keyed by the item URL, so it flows through
-the existing chunk → embed → index pipeline and becomes searchable.
+Phases 1–2 capture only list metadata; the body and thread of an item are the
+support gold. This fetches each item's content and upserts it as a community-tier
+Document keyed by the item URL, so it flows through chunk → embed → index.
 
-Network and logic are split so the upsert path is testable offline:
-- gather_work: which items to ingest (DB read)
-- fetch_pages: token-free HTML fetch (network)
-- ingest_pages: extract + upsert Documents (pure-ish; takes a {url: html} map)
+Fetch strategy (token-free by default, richer with a token):
+- with GITHUB_TOKEN: issues/PRs are pulled via authenticated REST — the issue/PR
+  body PLUS all conversation comments (the real thread), well above the token-free
+  60/hr scrape budget;
+- without a token (or for discussions, which are not in the REST bucket): the HTML
+  page is fetched and Trafilatura extracts the readable content.
 
-Idempotent via upsert_document (dedupe by url + content_hash). No FastAPI coupling.
+The fetch layer always yields readable markdown; the ingest layer is source-agnostic
+and idempotent (upsert_document dedupes by url + content_hash). No FastAPI coupling.
 """
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 
 import httpx
 from pydantic import BaseModel
@@ -32,14 +34,17 @@ from app.parsers.html import html_to_markdown
 from app.parsers.markdown import chunk_markdown
 from app.services.entity_upserts import upsert_document
 
-# kind → (model, Document.source_id used for the body docs)
 _KINDS: dict[str, tuple[type[GithubItemBase], str]] = {
     "issue": (Issue, "arf_issues"),
     "pull_request": (PullRequest, "arf_pulls"),
     "discussion": (Discussion, "arf_discussions"),
 }
 _MAX_CONCURRENT = 4
-_MIN_CONTENT_CHARS = 30  # below this, the extraction is empty/boilerplate — skip
+_MIN_CONTENT_CHARS = 30
+_GITHUB_API = "https://api.github.com"
+# issue/PR item URLs are REST-fetchable; discussions are not (GraphQL only).
+_REST_ITEM = re.compile(r"github\.com/([^/]+)/([^/]+)/(issues|pull)/(\d+)")
+_COMMENTS_PER_PAGE = 50
 
 
 class WorkItem(BaseModel):
@@ -54,6 +59,7 @@ class DeepIngestReport(BaseModel):
     documents_updated: int = 0
     unchanged: int = 0
     skipped_empty: int = 0
+    rest_threads: int = 0  # how many items were pulled as full REST threads
     errors: list[str] = []
 
 
@@ -71,38 +77,78 @@ async def gather_work(kinds: tuple[str, ...], limit: int) -> list[WorkItem]:
     return work
 
 
-async def fetch_pages(urls: list[str]) -> dict[str, str | None]:
-    """Fetch item pages concurrently (token-free). None for a failed fetch."""
+async def fetch_rest_thread(client: httpx.AsyncClient, html_url: str, token: str) -> str | None:
+    """Issue/PR body + all conversation comments as markdown, via authenticated
+    REST. None when the URL is not a REST item (e.g. a discussion)."""
+    match = _REST_ITEM.search(html_url)
+    if match is None:
+        return None
+    owner, repo, kind, number = match.groups()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    base = f"{_GITHUB_API}/repos/{owner}/{repo}"
+    main_path = f"pulls/{number}" if kind == "pull" else f"issues/{number}"
+    main = await client.get(f"{base}/{main_path}", headers=headers)
+    main.raise_for_status()
+    body = str(main.json().get("body") or "")
+    comments_resp = await client.get(
+        f"{base}/issues/{number}/comments?per_page={_COMMENTS_PER_PAGE}", headers=headers
+    )
+    comments = comments_resp.json() if comments_resp.status_code == 200 else []
+    parts = [body]
+    for c in comments if isinstance(comments, list) else []:
+        author = c.get("user", {}).get("login", "?")
+        text = str(c.get("body") or "").strip()
+        if text:
+            parts.append(f"Comment by {author}:\n\n{text}")
+    return "\n\n---\n\n".join(p for p in parts if p.strip())
+
+
+async def fetch_content(work: list[WorkItem], settings: Settings) -> dict[str, str | None]:
+    """Readable markdown per item URL (REST thread when possible, else HTML)."""
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
     results: dict[str, str | None] = {}
     async with httpx.AsyncClient(
         timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True, headers={"User-Agent": USER_AGENT}
     ) as client:
 
-        async def one(url: str) -> None:
+        async def one(item: WorkItem) -> None:
             async with semaphore:
                 try:
-                    resp = await client.get(url)
+                    if settings.github_token and _REST_ITEM.search(item.url):
+                        thread = await fetch_rest_thread(client, item.url, settings.github_token)
+                        if thread is not None:
+                            results[item.url] = thread
+                            return
+                    resp = await client.get(item.url)
                     resp.raise_for_status()
-                    results[url] = resp.text
+                    results[item.url] = html_to_markdown(resp.text)
                 except Exception:  # noqa: BLE001 - failed fetch → None, reported by caller
-                    results[url] = None
+                    results[item.url] = None
 
-        await asyncio.gather(*(one(u) for u in urls))
+        await asyncio.gather(*(one(i) for i in work))
     return results
 
 
-async def ingest_pages(work: list[WorkItem], pages: dict[str, str | None]) -> DeepIngestReport:
+async def ingest_pages(
+    work: list[WorkItem], contents: dict[str, str | None], settings: Settings | None = None
+) -> DeepIngestReport:
+    """Upsert each item's readable markdown as a community-tier Document."""
     report = DeepIngestReport()
+    token_set = bool(settings.github_token) if settings else False
     async with SessionLocal() as session:
         for item in work:
-            html = pages.get(item.url)
-            if html is None:
+            markdown = contents.get(item.url)
+            if markdown is None:
                 report.errors.append(f"{item.url}: fetch failed")
                 continue
             report.fetched += 1
-            markdown = html_to_markdown(html)
-            if not markdown or len(markdown.strip()) < _MIN_CONTENT_CHARS:
+            if token_set and _REST_ITEM.search(item.url):
+                report.rest_threads += 1
+            if len(markdown.strip()) < _MIN_CONTENT_CHARS:
                 report.skipped_empty += 1
                 continue
             chunks = chunk_markdown(markdown, base_url=item.url)
@@ -113,7 +159,7 @@ async def ingest_pages(work: list[WorkItem], pages: dict[str, str | None]) -> De
                 session,
                 source_id=item.source_id,
                 url=item.url,
-                title=item.title,  # the clean list title, not the body's first heading
+                title=item.title,
                 tier=Tier.community,
                 doc_type="html",
                 content_hash=hashlib.sha256(markdown.encode()).hexdigest(),
@@ -136,5 +182,5 @@ async def deep_ingest_activity(
     kinds: tuple[str, ...] = ("issue", "pull_request", "discussion"),
 ) -> DeepIngestReport:
     work = await gather_work(kinds, limit)
-    pages = await fetch_pages([item.url for item in work])
-    return await ingest_pages(work, pages)
+    contents = await fetch_content(work, settings)
+    return await ingest_pages(work, contents, settings)

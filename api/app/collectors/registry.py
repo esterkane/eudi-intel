@@ -53,13 +53,14 @@ REGISTRY: tuple[SourceSpec, ...] = (
         url=f"{_STS}.git",
     ),
     # ── Release / tag / commit activity via Atom feeds ───────────────────────
+    # Atom is the right source for these (outside the REST rate bucket, and the
+    # parser is atom-only); the token adds nothing here, so no api_url switch.
     SourceSpec(
         id="arf_releases_feed",
         title="ARF releases (atom)",
         tier=Tier.roadmap,
         method=FetchMethod.feed,
         url=f"{_ARF}/releases.atom",
-        api_url=f"{_ARF_API}/releases?per_page=30",
     ),
     SourceSpec(
         id="arf_tags_feed",
@@ -67,7 +68,6 @@ REGISTRY: tuple[SourceSpec, ...] = (
         tier=Tier.roadmap,
         method=FetchMethod.feed,
         url=f"{_ARF}/tags.atom",
-        api_url=f"{_ARF_API}/tags?per_page=30",
     ),
     SourceSpec(
         id="arf_commits_feed",
@@ -75,7 +75,6 @@ REGISTRY: tuple[SourceSpec, ...] = (
         tier=Tier.roadmap,
         method=FetchMethod.feed,
         url=f"{_ARF}/commits/main.atom",
-        api_url=f"{_ARF_API}/commits?sha=main&per_page=30",
     ),
     SourceSpec(
         id="sts_releases_feed",

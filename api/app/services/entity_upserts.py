@@ -8,6 +8,7 @@ from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.entities import (
     Document,
@@ -38,7 +39,11 @@ async def upsert_document(
     version_or_tag: str | None = None,
 ) -> UpsertOutcome:
     now = datetime.now(tz=UTC)
-    doc = await session.scalar(select(Document).where(Document.url == url))
+    # Eager-load sections: the update path clears them, and async SQLAlchemy
+    # cannot lazy-load a relationship (it raises MissingGreenlet).
+    doc = await session.scalar(
+        select(Document).where(Document.url == url).options(selectinload(Document.sections))
+    )
     if doc is not None and doc.content_hash == content_hash:
         doc.last_seen = now
         doc.title = title[:512]  # metadata refresh (e.g. title-cleaning fixes)
