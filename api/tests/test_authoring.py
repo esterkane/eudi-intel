@@ -22,7 +22,7 @@ from app.services.authoring import (
 )
 from app.services.retrieval import Citation
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 
 def _evidence(n: int, tier: str = "normative") -> EvidenceItem:

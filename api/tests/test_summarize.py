@@ -24,7 +24,7 @@ from app.services.summarize import (
     summarize_pending,
 )
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 VALID_JSON = """Here is the summary:
 ```json

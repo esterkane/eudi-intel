@@ -18,7 +18,7 @@ from app.models.entities import Version, VersionDiff
 from app.services.parse_pipeline import reingest_new_tags
 from app.worker.celery_app import celery_app
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 
 def test_beat_schedule_covers_all_cadences() -> None:

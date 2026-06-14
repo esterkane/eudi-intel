@@ -16,7 +16,7 @@ from app.models.entities import Document, Section
 from app.parsers.github_lists import parse_issue_list_json, parse_pull_list_json
 from app.services.deep_ingest import WorkItem, fetch_rest_thread, ingest_pages
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 # Readable markdown content (extraction happens in the fetch layer now).
 ISSUE_MD = (

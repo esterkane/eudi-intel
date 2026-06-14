@@ -18,7 +18,7 @@ from app.models.source import Tier
 from app.services.retrieval import SearchFilters, lexical_search
 from app.services.suggest import suggest
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 MARKER = f"zebraflux{uuid.uuid4().hex[:8]}"  # collision-proof distinctive token
 

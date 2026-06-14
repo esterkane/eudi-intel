@@ -15,7 +15,7 @@ from app.collectors.base import CollectResult
 from app.models.source import SourceSnapshot
 from app.services.snapshots import record_snapshot
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 
 @pytest.fixture

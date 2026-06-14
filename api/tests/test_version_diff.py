@@ -18,7 +18,7 @@ from app.models.entities import VersionDiff
 from app.models.source import FetchMethod, Tier
 from app.services.version_diff import compute_version_diff
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 V1 = """# Spec
 

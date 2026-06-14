@@ -17,7 +17,7 @@ import app.routers.dashboard as dashboard_mod
 from app.models.entities import Issue, Maturity, Release, RoadmapItem, VersionDiff
 from app.routers.dashboard import activity_view, issues_view, releases_view, roadmap_view
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 
 @pytest.fixture

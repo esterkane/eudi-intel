@@ -17,7 +17,7 @@ from app.models.entities import Document, Section
 from app.models.source import Tier
 from app.services.vector_index import sections_needing_embedding
 
-LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi"
+LOCAL_PG = "postgresql+asyncpg://eudi:eudi@localhost:5432/eudi_test"
 
 
 def test_lexical_weights_to_sparse() -> None:
