@@ -1,0 +1,9 @@
+{"id": "wallet-genuine", "query": "prove the wallet is genuine", "answerable": true, "expected_any": ["wallet-unit-attestation", "wallet-instance-attestation", "authenticity-of-the-wallet"]}
+{"id": "verifier-reject", "query": "verifier keeps rejecting my presentation request", "answerable": true, "expected_any": ["presentation", "oid4vp", "relying"]}
+{"id": "remote-signing", "query": "signing documents remotely with the wallet", "answerable": true, "expected_any": ["rqes", "signing-documents", "electronic-signature"]}
+{"id": "selective-disclosure", "query": "credential format that supports selective disclosure", "answerable": true, "expected_any": ["sd-jwt"]}
+{"id": "identity-data", "query": "what data proves a person's identity in the wallet", "answerable": true, "expected_any": ["person-identification-data", "pid"]}
+{"id": "issuance", "query": "how do I issue a credential to a wallet", "answerable": true, "expected_any": ["issuance", "issuing", "oid4vci", "issuer"]}
+{"id": "degoogled", "query": "android os without google", "answerable": false, "glossary_term": "de-Googled Android", "max_top_score": 0.4}
+{"id": "exact-topic20", "query": "Topic 20 - Strong User authentication", "exact": true, "rank1_any": ["strong-user-authentication", "topic-20"]}
+{"id": "exact-wua", "query": "Wallet Unit Attestation", "exact": true, "rank1_any": ["wallet-unit-attestation"]}

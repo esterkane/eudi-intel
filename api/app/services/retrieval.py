@@ -200,12 +200,18 @@ def _qdrant_filter(filters: SearchFilters) -> qmodels.Filter | None:
 
 
 async def vector_search(
-    query: str, filters: SearchFilters, limit: int, settings: Settings
+    query: str,
+    filters: SearchFilters,
+    limit: int,
+    settings: Settings,
+    embed_text: str | None = None,
 ) -> tuple[list[Candidate], list[Candidate]]:
-    """Dense and sparse result lists from one query embedding."""
+    """Dense and sparse result lists from one query embedding. `embed_text`
+    (when given, from query expansion) is embedded instead of the raw query —
+    the semantic-recall lever — while lexical channels keep the original query."""
     # CPU-bound torch call — keep it off the event loop so concurrent
     # requests (e.g. autosuggest while a search runs) stay responsive.
-    embedded = (await asyncio.to_thread(get_embedder().embed, [query]))[0]
+    embedded = (await asyncio.to_thread(get_embedder().embed, [embed_text or query]))[0]
     client = get_qdrant()
     qfilter = _qdrant_filter(filters)
     dense_res = await client.query_points(
@@ -234,11 +240,17 @@ async def vector_search(
 
 
 async def hybrid_search(
-    query: str, filters: SearchFilters, limit: int, settings: Settings
+    query: str,
+    filters: SearchFilters,
+    limit: int,
+    settings: Settings,
+    embed_text: str | None = None,
 ) -> list[SearchHit]:
     lexical = await lexical_search(query, filters, _PER_CHANNEL_LIMIT)
     headings = await heading_search(query, filters, 10)
-    dense, sparse = await vector_search(query, filters, _PER_CHANNEL_LIMIT, settings)
+    dense, sparse = await vector_search(
+        query, filters, _PER_CHANNEL_LIMIT, settings, embed_text=embed_text
+    )
 
     candidates: dict[str, Candidate] = {}
     for channel in (headings, lexical, dense, sparse):

@@ -59,6 +59,8 @@ export default function SearchPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [answer, setAnswer] = useState<GroundedAnswer | null>(null);
+  const [expand, setExpand] = useState(false);
+  const [glossary, setGlossary] = useState<{ term: string; definition: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,10 +100,15 @@ export default function SearchPage() {
     try {
       const params = new URLSearchParams({ q: text, limit: "10" });
       if (tier) params.set("tier", tier);
+      if (expand) params.set("expand", "true");
       const r = await fetch(`${API_URL}/search?${params}`);
       if (!r.ok) throw new Error(`search failed: ${r.status}`);
-      const body = (await r.json()) as { results: SearchHit[] };
+      const body = (await r.json()) as {
+        results: SearchHit[];
+        glossary?: { term: string; definition: string }[];
+      };
       setHits(body.results);
+      setGlossary(body.glossary ?? []);
     } catch (e: unknown) {
       setError(String(e));
     } finally {
@@ -181,6 +188,27 @@ export default function SearchPage() {
           {asking ? "Thinking…" : "Ask"}
         </button>
       </div>
+
+      <label className="expand-toggle">
+        <input
+          type="checkbox"
+          checked={expand}
+          onChange={(e) => setExpand(e.target.checked)}
+        />
+        Expand recall (glossary + HyDE) — for vague queries when you’re unsure of the exact term
+      </label>
+
+      {glossary.length > 0 ? (
+        <div className="panel glossary-panel">
+          <strong>Glossary</strong>
+          {glossary.map((g) => (
+            <div key={g.term} className="glossary-item">
+              <span className="badge category">{g.term}</span>
+              <span className="detail">{g.definition}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {error ? <p className="detail">{error}</p> : null}
 

@@ -7,15 +7,22 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from app.core.config import get_settings
+from app.services.query_expansion import expand_query
 from app.services.retrieval import SearchFilters, SearchHit, hybrid_search
 from app.services.suggest import Suggestion, suggest
 
 router = APIRouter(tags=["search"])
 
 
+class GlossaryHit(BaseModel):
+    term: str
+    definition: str
+
+
 class SearchResponse(BaseModel):
     query: str
     results: list[SearchHit]
+    glossary: list[GlossaryHit] = []
 
 
 class SuggestResponse(BaseModel):
@@ -30,10 +37,20 @@ async def search(
     repo: str | None = Query(default=None, max_length=64),
     version: str | None = Query(default=None, max_length=64),
     limit: int = Query(default=10, ge=1, le=30),
+    expand: bool = Query(default=False, description="HyDE query expansion for vague queries"),
 ) -> SearchResponse:
+    settings = get_settings()
     filters = SearchFilters(tier=tier, repo=repo, version=version)
-    hits = await hybrid_search(q, filters, limit, get_settings())
-    return SearchResponse(query=q, results=hits)
+    # Glossary aliases are always applied (cheap, deterministic); HyDE only when asked.
+    expansion = await expand_query(q, settings, use_hyde=expand)
+    hits = await hybrid_search(q, filters, limit, settings, embed_text=expansion.embed_text)
+    return SearchResponse(
+        query=q,
+        results=hits,
+        glossary=[
+            GlossaryHit(term=t.term, definition=t.definition) for t in expansion.glossary_terms
+        ],
+    )
 
 
 @router.get("/suggest", response_model=SuggestResponse)

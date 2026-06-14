@@ -79,7 +79,11 @@ def test_clearly_better_score_beats_tier() -> None:
 
 def test_search_endpoint_returns_full_citations(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_hybrid_search(
-        query: str, filters: SearchFilters, limit: int, settings: object
+        query: str,
+        filters: SearchFilters,
+        limit: int,
+        settings: object,
+        embed_text: str | None = None,
     ) -> list[SearchHit]:
         assert filters.tier == "normative"
         candidate = _candidate("k1", "normative")
