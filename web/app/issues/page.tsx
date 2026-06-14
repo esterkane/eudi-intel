@@ -1,4 +1,5 @@
 import { formatDate, getIssues, type GithubItemCard } from "../../lib/api";
+import SummaryBlock from "../Summary";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ function ItemCard({ item }: { item: GithubItemCard }) {
       <div className="card-title">
         #{item.number} {item.title}
       </div>
+      <SummaryBlock summary={item.summary} />
       <span className="badge community">community</span>
       <span className={`badge state-${item.state}`}>{item.state}</span>
       <div className="meta">

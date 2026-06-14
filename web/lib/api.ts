@@ -7,11 +7,23 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:8000";
 
+export interface EntitySummary {
+  tl_dr: string;
+  category: string;
+  components: string[];
+  what: string;
+  why: string;
+  status: string;
+  recommended_action: string;
+  non_normative: boolean;
+}
+
 export interface ReleaseCard {
   title: string;
   url: string;
   source_id: string;
   published_at: string | null;
+  summary: EntitySummary | null;
 }
 
 export interface DiffCard {
@@ -45,6 +57,7 @@ export interface GithubItemCard {
   url: string;
   updated_at: string | null;
   last_seen: string;
+  summary: EntitySummary | null;
 }
 
 export interface IssuesView {

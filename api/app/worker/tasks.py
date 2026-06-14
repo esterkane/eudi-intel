@@ -19,6 +19,7 @@ from app.db.session import engine
 from app.models.source import FetchMethod
 from app.services.deep_ingest import deep_ingest_activity
 from app.services.parse_pipeline import parse_for_methods, reingest_new_tags
+from app.services.summarize import summarize_pending
 from app.services.vector_index import embed_and_index_all, embed_pending_sections
 from app.worker.celery_app import celery_app
 
@@ -47,6 +48,13 @@ def run_task(coro: Awaitable[_T]) -> _T:
 @celery_app.task(name="embed_and_index")
 def embed_and_index() -> dict[str, Any]:
     return run_task(embed_and_index_all(get_settings()))
+
+
+@celery_app.task(name="summarize_entities")
+def summarize_entities() -> dict[str, Any]:
+    """S2: (re)generate structured summaries for activity entities whose content
+    changed. Heavy (one LLM call per new/changed entity) — daily cadence."""
+    return run_task(summarize_pending(get_settings())).model_dump()
 
 
 async def _collect_parse(

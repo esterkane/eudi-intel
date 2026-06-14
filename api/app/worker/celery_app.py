@@ -46,6 +46,11 @@ celery_app.conf.beat_schedule = {
         "task": "collect_and_parse_git",
         "schedule": _settings.git_pull_interval,
     },
+    # S2: refresh structured entity summaries daily (after the day's ingestion).
+    "summarize-entities": {
+        "task": "summarize_entities",
+        "schedule": _settings.crawl_docs_interval,
+    },
 }
 
 # Alias for Celery's app autodiscovery via `-A app.worker.celery_app`.

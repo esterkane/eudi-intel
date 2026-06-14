@@ -20,8 +20,11 @@ from app.models.entities import (
     RoadmapItem,
     VersionDiff,
 )
+from app.services.summarize import summaries_for_urls
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+EntityDigest = dict[str, object]
 
 
 # ── 1. Latest Releases & What Changed ────────────────────────────────────────
@@ -32,6 +35,7 @@ class ReleaseCard(BaseModel):
     url: str
     source_id: str
     published_at: datetime | None
+    summary: EntityDigest | None = None  # cached S2 structured summary
 
 
 class DiffCard(BaseModel):
@@ -61,10 +65,15 @@ async def releases_view(limit: int = Query(default=20, ge=1, le=100)) -> Release
                 select(VersionDiff).order_by(VersionDiff.computed_at.desc()).limit(5)
             )
         ).all()
+        summaries = await summaries_for_urls(session, [r.url for r in releases])
     return ReleasesView(
         releases=[
             ReleaseCard(
-                title=r.title, url=r.url, source_id=r.source_id, published_at=r.published_at
+                title=r.title,
+                url=r.url,
+                source_id=r.source_id,
+                published_at=r.published_at,
+                summary=summaries.get(r.url),
             )
             for r in releases
         ],
@@ -131,6 +140,7 @@ class GithubItemCard(BaseModel):
     url: str
     updated_at: datetime | None
     last_seen: datetime
+    summary: EntityDigest | None = None  # cached S2 structured summary
 
 
 class IssuesView(BaseModel):
@@ -138,7 +148,11 @@ class IssuesView(BaseModel):
     pull_requests: list[GithubItemCard]
 
 
-def _card(kind: Literal["issue", "pull_request", "discussion"], item: Any) -> GithubItemCard:
+def _card(
+    kind: Literal["issue", "pull_request", "discussion"],
+    item: Any,
+    summaries: dict[str, EntityDigest],
+) -> GithubItemCard:
     return GithubItemCard(
         kind=kind,
         repo=item.repo,
@@ -148,6 +162,7 @@ def _card(kind: Literal["issue", "pull_request", "discussion"], item: Any) -> Gi
         url=item.url,
         updated_at=item.updated_at,
         last_seen=item.last_seen,
+        summary=summaries.get(item.url),
     )
 
 
@@ -170,9 +185,12 @@ async def issues_view(limit: int = Query(default=50, ge=1, le=200)) -> IssuesVie
                 .limit(limit)
             )
         ).all()
+        summaries = await summaries_for_urls(
+            session, [i.url for i in issues] + [p.url for p in pulls]
+        )
     return IssuesView(
-        issues=[_card("issue", i) for i in issues],
-        pull_requests=[_card("pull_request", p) for p in pulls],
+        issues=[_card("issue", i, summaries) for i in issues],
+        pull_requests=[_card("pull_request", p, summaries) for p in pulls],
     )
 
 

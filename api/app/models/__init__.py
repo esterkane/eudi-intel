@@ -9,6 +9,7 @@ GeneratedDraft.
 from app.models.entities import (
     Discussion,
     Document,
+    EntitySummary,
     GeneratedDraft,
     Issue,
     Maturity,
@@ -25,6 +26,7 @@ from app.models.source import FetchMethod, SourceSnapshot, Tier
 __all__ = [
     "Discussion",
     "Document",
+    "EntitySummary",
     "FetchMethod",
     "GeneratedDraft",
     "Issue",

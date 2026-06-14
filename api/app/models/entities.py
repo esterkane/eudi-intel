@@ -174,6 +174,24 @@ class GeneratedDraft(Base):
     source_basis: Mapped[dict[str, Any]] = mapped_column(JSON)
 
 
+class EntitySummary(Base):
+    """Cached, grounded, structured summary of an activity entity (issue / PR /
+    discussion / release) — so a card tells you exactly what it is about
+    (entity-summarization skill). Keyed by the entity URL; regenerated only when
+    the source content_hash changes."""
+
+    __tablename__ = "entity_summaries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String(20))  # issue|pull_request|discussion|release
+    entity_url: Mapped[str] = mapped_column(String(1024), unique=True)
+    source_content_hash: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(64))
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # {tl_dr, category, components[], what, why, status, recommended_action, non_normative}
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
 class VersionDiff(Base):
     """Section-level diff between two tags of a docs repo ("what changed")."""
 

@@ -1,4 +1,5 @@
 import { formatDate, getReleases } from "../../lib/api";
+import SummaryBlock from "../Summary";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function ReleasesPage() {
         {releases.map((r) => (
           <a key={r.url} className="card" href={r.url} target="_blank" rel="noreferrer">
             <div className="card-title">{r.title}</div>
+            <SummaryBlock summary={r.summary} />
             <span className="badge roadmap">{r.source_id}</span>
             <div className="meta">published {formatDate(r.published_at)}</div>
           </a>

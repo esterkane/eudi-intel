@@ -222,6 +222,56 @@ h2 {
   margin: 0;
 }
 
+/* ── entity summary (S2) ── */
+.summary {
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  background: rgba(88, 166, 255, 0.06);
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+}
+
+.summary-thin {
+  background: rgba(139, 148, 158, 0.08);
+  border-left-color: var(--community);
+}
+
+.summary-tldr {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.chip {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(139, 148, 158, 0.14);
+  color: var(--muted);
+}
+
+.badge.category {
+  background: rgba(163, 113, 247, 0.16);
+  color: var(--normative);
+}
+
+.summary-action {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.summary-action strong {
+  color: var(--text);
+}
+
 /* ── search page ── */
 .searchbar {
   display: flex;

@@ -13,6 +13,7 @@ from app.db.session import SessionLocal
 from app.models.entities import (
     Discussion,
     Document,
+    EntitySummary,
     Issue,
     PullRequest,
     Release,
@@ -24,6 +25,7 @@ from app.models.entities import (
 from app.models.source import SourceSnapshot
 from app.services.deep_ingest import DeepIngestReport, deep_ingest_activity
 from app.services.parse_pipeline import ParseReport, parse_all
+from app.services.summarize import SummarizeReport, summarize_pending
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -66,6 +68,31 @@ async def ingest_parse_all() -> ParseReport:
 async def ingest_deep_activity(limit: int = Query(default=40, ge=1, le=200)) -> DeepIngestReport:
     """Phase S1: fetch issue/PR/discussion bodies into the searchable corpus."""
     return await deep_ingest_activity(get_settings(), limit=limit)
+
+
+@router.post("/summarize", response_model=SummarizeReport)
+async def ingest_summarize(limit: int = Query(default=40, ge=1, le=200)) -> SummarizeReport:
+    """Phase S2: (re)generate structured summaries for changed activity entities."""
+    return await summarize_pending(get_settings(), limit=limit)
+
+
+class SummarizeStatus(BaseModel):
+    summaries: int
+    by_type: dict[str, int]
+
+
+@router.get("/summarize/status", response_model=SummarizeStatus)
+async def summarize_status() -> SummarizeStatus:
+    async with SessionLocal() as session:
+        total = (await session.scalar(select(func.count()).select_from(EntitySummary))) or 0
+        rows = (
+            await session.execute(
+                select(EntitySummary.entity_type, func.count(EntitySummary.id)).group_by(
+                    EntitySummary.entity_type
+                )
+            )
+        ).all()
+    return SummarizeStatus(summaries=total, by_type={t: n for t, n in rows})
 
 
 class EntityCountsResponse(BaseModel):
