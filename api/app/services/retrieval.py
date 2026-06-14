@@ -17,6 +17,7 @@ from app.db.qdrant import get_qdrant, point_id
 from app.db.session import SessionLocal
 from app.embeddings.bge_m3 import get_embedder
 from app.embeddings.reranker import get_reranker
+from app.services.rerank_cache import get_cached_scores, store_scores
 from app.models.entities import Document, Section
 
 RRF_K = 60
@@ -274,8 +275,18 @@ async def hybrid_search(
 
     if settings.rerank_enabled and top_keys:
         contents = [candidates[k].content for k in top_keys]
-        # CPU-bound cross-encoder — off the event loop (see vector_search)
-        rerank_scores = await asyncio.to_thread(get_reranker().score, query, contents)
+        model = settings.reranker_model
+        # Cache hits skip the cross-encoder; only score the misses (G2).
+        cached = await get_cached_scores(model, query, contents)
+        miss_idx = [i for i, score in enumerate(cached) if score is None]
+        if miss_idx:
+            miss_contents = [contents[i] for i in miss_idx]
+            # CPU-bound cross-encoder — off the event loop (see vector_search)
+            miss_scores = await asyncio.to_thread(get_reranker().score, query, miss_contents)
+            await store_scores(model, query, miss_contents, miss_scores)
+            for i, score in zip(miss_idx, miss_scores):
+                cached[i] = score
+        rerank_scores = [s if s is not None else 0.0 for s in cached]
         scored = [(score, candidates[key]) for key, score in zip(top_keys, rerank_scores)]
     else:
         scored = [(fused[key], candidates[key]) for key in top_keys]

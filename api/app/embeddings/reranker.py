@@ -16,13 +16,15 @@ from typing import Any
 
 from app.core.config import get_settings
 
-_MAX_LENGTH = 512
 _BATCH_SIZE = 8
 
 
 class BgeReranker:
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, max_length: int = 256) -> None:
+        # Shorter max_length trades a little long-document precision for a large
+        # CPU speedup; the relevance signal is usually early in the passage.
         self._model_name = model_name
+        self._max_length = max_length
         self._tokenizer: Any = None
         self._model: Any = None
 
@@ -52,7 +54,7 @@ class BgeReranker:
                     batch,
                     padding=True,
                     truncation=True,
-                    max_length=_MAX_LENGTH,
+                    max_length=self._max_length,
                     return_tensors="pt",
                 )
                 logits = self._model(**inputs).logits.view(-1)
@@ -66,5 +68,6 @@ _reranker: BgeReranker | None = None
 def get_reranker() -> BgeReranker:
     global _reranker
     if _reranker is None:
-        _reranker = BgeReranker(get_settings().reranker_model)
+        settings = get_settings()
+        _reranker = BgeReranker(settings.reranker_model, max_length=settings.rerank_max_length)
     return _reranker

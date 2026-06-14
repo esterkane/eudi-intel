@@ -70,7 +70,7 @@ async def related_activity(
     Reranking is capped to a small candidate set so the fast path stays
     responsive — the CPU cross-encoder is the slow part."""
     hits = await hybrid_search(
-        query, filters, _RELATED_POOL, settings, embed_text=embed_text, rerank_limit=12
+        query, filters, _RELATED_POOL, settings, embed_text=embed_text, rerank_limit=8
     )
     best: dict[str, tuple[float, str, str]] = {}  # base_url → (score, title, tier)
     for hit in hits:
