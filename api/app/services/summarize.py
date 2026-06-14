@@ -30,7 +30,9 @@ from app.models.entities import (
     PullRequest,
     Release,
     Section,
+    VersionDiff,
 )
+from app.parsers.feeds import tag_from_release_url
 from app.services.llm import chat
 
 logger = logging.getLogger(__name__)
@@ -134,7 +136,7 @@ async def gather_candidates(
         rel_stmt = rel_stmt.where(Release.url.in_(only_urls))
     releases = (await session.scalars(rel_stmt)).all()
     for rel in releases:
-        text = f"{rel.title}\n\n{rel.summary or ''}".strip()
+        text = await _release_source_text(session, rel)
         candidates.append(
             Candidate(
                 entity_type="release",
@@ -146,6 +148,44 @@ async def gather_candidates(
             )
         )
     return candidates
+
+
+async def _release_source_text(session: AsyncSession, rel: Release) -> str:
+    """Release summary basis: title + body, enriched with the 'what changed'
+    detail from the matching VersionDiff (a release usually has only a title, so
+    the diff is what makes a release summarizable)."""
+    parts = [rel.title]
+    if rel.summary:
+        parts.append(rel.summary)
+    tag = tag_from_release_url(rel.url)
+    if tag:
+        diff = await session.scalar(
+            select(VersionDiff)
+            .where(VersionDiff.to_tag == tag)
+            .order_by(VersionDiff.computed_at.desc())
+            .limit(1)
+        )
+        if diff is not None:
+            s = diff.detail.get("summary", {})
+            parts.append(
+                f"This release ({diff.from_tag} -> {diff.to_tag}) changed the ARF: "
+                f"{s.get('sections_changed', 0)} sections changed, "
+                f"{s.get('sections_added', 0)} added, {s.get('sections_removed', 0)} removed, "
+                f"{s.get('files_added', 0)} files added."
+            )
+            changed = diff.detail.get("sections_changed", [])[:25]
+            if changed:
+                parts.append(
+                    "Changed sections:\n"
+                    + "\n".join(f"- {c['file']}: {c['section']}" for c in changed)
+                )
+            added = diff.detail.get("sections_added", [])[:15]
+            if added:
+                parts.append(
+                    "Added sections:\n"
+                    + "\n".join(f"- {c['file']}: {c['section']}" for c in added)
+                )
+    return "\n\n".join(parts)
 
 
 def _parse_summary(raw: str) -> LlmSummary | None:

@@ -136,6 +136,45 @@ async def test_summarize_caches_and_is_idempotent(
     assert calls["n"] == calls_after_first  # the LLM was not called again
 
 
+async def test_release_basis_includes_version_diff(
+    pg: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A release with a matching VersionDiff is summarizable from 'what changed'."""
+    from datetime import UTC, datetime
+
+    from app.models.entities import Release, VersionDiff
+    from app.services.summarize import gather_candidates
+
+    now = datetime.now(tz=UTC)
+    tag = f"v{uuid.uuid4().hex[:6]}"
+    url = f"https://github.com/x/summ-test/releases/tag/{tag}"
+    pg.add(Release(source_id="summ_test_rel", title=f"Release {tag}", url=url, published_at=now))
+    pg.add(
+        VersionDiff(
+            source_id="summ_test_rel", from_tag="prev", to_tag=tag, computed_at=now,
+            detail={
+                "summary": {"sections_changed": 7, "sections_added": 2, "sections_removed": 1,
+                            "files_added": 0, "files_removed": 0},
+                "sections_changed": [{"file": "annex-2.md", "section": "Wallet Unit Attestation"}],
+                "sections_added": [{"file": "ts13.md", "section": "ZKP"}],
+            },
+        )
+    )
+    await pg.commit()
+
+    cands = await gather_candidates(pg, limit=200, only_urls={url})
+    rel_cand = next(c for c in cands if c.url == url)
+    assert "7 sections changed" in rel_cand.source_text  # the diff drives the basis
+    assert "Wallet Unit Attestation" in rel_cand.source_text
+    assert len(rel_cand.source_text) > 40  # no longer "insufficient"
+
+    await pg.execute(
+        VersionDiff.__table__.delete().where(VersionDiff.source_id == "summ_test_rel")
+    )
+    await pg.execute(Release.__table__.delete().where(Release.source_id == "summ_test_rel"))
+    await pg.commit()
+
+
 async def test_insufficient_when_body_too_short(
     pg: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
