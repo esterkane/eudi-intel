@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.routers import answer, author, dashboard, health, ingest, search
+from app.routers import answer, author, dashboard, health, ingest, search, support
 
 app = FastAPI(
     title="EUDI Intelligence & Authoring Workbench",
@@ -27,6 +27,7 @@ app.include_router(search.router)
 app.include_router(answer.router)
 app.include_router(dashboard.router)
 app.include_router(author.router)
+app.include_router(support.router)
 
 
 class RootResponse(BaseModel):

@@ -24,7 +24,7 @@ from app.services.retrieval import Citation
 
 logger = logging.getLogger(__name__)
 
-DocType = Literal["faq", "playbook", "kb_article"]
+DocType = Literal["faq", "playbook", "kb_article", "integration_guide"]
 
 _MARKER = re.compile(r"\[(\d+)\]")
 _H2 = re.compile(r"^##\s+(.*)$", re.MULTILINE)
@@ -47,6 +47,12 @@ _STRUCTURE: dict[str, str] = {
         "Write a knowledge-base article: '## Summary' first, then topical '## ' "
         "body sections, then '## References'. Every paragraph must end with "
         "bracketed evidence markers like [1] or [2][3]."
+    ),
+    "integration_guide": (
+        "Write an integration guide for a B2B partner integrating against the "
+        "EUDI wallet. Use exactly these '## ' sections: '## Overview', "
+        "'## Prerequisites', '## Steps' (numbered), '## Pitfalls', '## References'. "
+        "Every paragraph and step must end with bracketed evidence markers like [1]."
     ),
 }
 

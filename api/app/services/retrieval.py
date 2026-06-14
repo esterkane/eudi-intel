@@ -245,7 +245,11 @@ async def hybrid_search(
     limit: int,
     settings: Settings,
     embed_text: str | None = None,
+    rerank_limit: int | None = None,
 ) -> list[SearchHit]:
+    """`rerank_limit` caps how many fused candidates the CPU cross-encoder scores
+    (the slow step). The support console's related-activity path passes a small
+    cap to stay responsive while keeping rerank quality on the top candidates."""
     lexical = await lexical_search(query, filters, _PER_CHANNEL_LIMIT)
     headings = await heading_search(query, filters, 10)
     dense, sparse = await vector_search(
@@ -266,7 +270,7 @@ async def hybrid_search(
         ]
     )
     top_keys = sorted(fused, key=lambda k: fused[k], reverse=True)
-    top_keys = top_keys[: settings.rerank_candidates]
+    top_keys = top_keys[: rerank_limit or settings.rerank_candidates]
 
     if settings.rerank_enabled and top_keys:
         contents = [candidates[k].content for k in top_keys]
