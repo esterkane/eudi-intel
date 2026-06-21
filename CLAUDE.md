@@ -208,6 +208,14 @@ RUN_GROUNDING_EVAL=1 pytest tests/test_grounding_eval.py   # opt-in grounding ga
 RUN_RECALL_EVAL=1   pytest tests/test_recall_eval.py       # opt-in recall gate
 ```
 
+**MCP server — read-only agent tools** (from `api/`):
+```bash
+python -m app.mcp.server     # MCP_TRANSPORT=stdio (default) | http
+```
+Exposes the retrieval core as three read-only tools (`hybrid_search`, `get_chunk`,
+`list_sources`) — thin adapters in `api/app/mcp/` over the existing
+retrieval/registry functions. See `docs/mcp.md`.
+
 **Frontend** (from `web/`):
 ```bash
 npm install
@@ -235,6 +243,7 @@ and `npm run lint` + `npm run build` + `npm run e2e` (web) as the local quality 
 3. **Provenance on every chunk** — Every search result, answer, dashboard card, and authored section carries a citation (`doc_title, source_url, tier, version_or_tag, section_heading, last_seen`). Never emit an uncited claim; if retrieval has no support, say so — never fabricate a source. Drafts carry "source basis" and require an explicit human finalize (no auto-publish).
 4. **No secrets in git** — Config and secrets load from `.env` (gitignored) via `pydantic-settings` / Docker `env_file:`; only `.env.example` is committed, with `GITHUB_TOKEN` empty. Never hardcode credentials in `docker-compose.yml` or code.
 5. **Repo-specific hard rules** — 8 GB VRAM envelope: the GPU is the LLM only (embeddings + reranker on CPU); LLM context capped at 8192 tokens; never raise model size/ctx on this card. Token-free GitHub access by default; a `GITHUB_TOKEN` only speeds collection, never required. Model names read from env (`GEN_MODEL`,`EMBEDDING_MODEL`,`RERANKER_MODEL`), never hardcoded. Schema changes require an Alembic migration. The LLM is reached only via `OLLAMA_BASE_URL`. Do not bake daily-changing roadmap/issue/release state into model weights — that is retrieval's job.
+6. **MCP layer is thin + read-only** — The `api/app/mcp/` tools (`hybrid_search`, `get_chunk`, `list_sources`) are thin adapters over the existing retrieval/registry functions: no retrieval/ranking/business logic in the MCP layer. All tools are read-only — the authoring/publish plane (human-gated) is NOT exposed and no tool mutates state (`MCP_ALLOW_MUTATIONS` default false; there is no mutating tool to enable). Errors are structured (`{isError, errorCategory, isRetryable, message, details}`) and never leak a stack trace. Provenance is preserved on every result/chunk — the same full citation block the API returns.
 
 ## Definition of done
 - `pytest` passes (unit; integration when `eudi_test` is provisioned).
@@ -245,3 +254,4 @@ and `npm run lint` + `npm run build` + `npm run e2e` (web) as the local quality 
 - VRAM / token-free invariants respected (LLM-only GPU, 8K ctx, runs with empty `GITHUB_TOKEN`).
 - README / `docs/` / affected `.claude/skills/` updated if behaviour changed.
 - No secrets added; only `.env.example` documents variables.
+- MCP tools (`api/app/mcp/`) stay thin + read-only with structured errors and full provenance; the authoring/publish plane is never exposed and no tool mutates state. `mypy app/mcp` clean and `pytest tests/test_mcp_tools.py` green.

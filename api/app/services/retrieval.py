@@ -135,7 +135,9 @@ def _candidate_from_payload(key: str, payload: dict[str, object]) -> Candidate:
     )
 
 
-def _apply_lexical_filters(stmt: Select[tuple[Section, Document]], filters: SearchFilters) -> Select[tuple[Section, Document]]:
+def _apply_lexical_filters(
+    stmt: Select[tuple[Section, Document]], filters: SearchFilters
+) -> Select[tuple[Section, Document]]:
     if filters.tier:
         stmt = stmt.where(Section.tier == filters.tier)
     if filters.repo:
@@ -143,6 +145,32 @@ def _apply_lexical_filters(stmt: Select[tuple[Section, Document]], filters: Sear
     if filters.version:
         stmt = stmt.where(Document.version_or_tag == filters.version)
     return stmt
+
+
+async def get_section_hit(chunk_id: int) -> SearchHit | None:
+    """Fetch a single indexed chunk (Section) by its database id and return it in
+    the same SearchHit shape the search endpoint emits — full citation block
+    (tier + version + section heading + last_seen) preserved. Returns None when no
+    section with that id exists. Score is 0.0 (a direct fetch is not ranked).
+
+    Reused by the read-only MCP `get_chunk` tool and any future by-id route."""
+    stmt = (
+        select(Section, Document)
+        .join(Document, Section.document_id == Document.id)
+        .where(Section.id == chunk_id)
+    )
+    async with SessionLocal() as session:
+        row = (await session.execute(stmt)).first()
+    if row is None:
+        return None
+    section, document = row
+    candidate = _candidate_from_section(section, document)
+    return SearchHit(
+        score=0.0,
+        content=candidate.content,
+        section_path=candidate.section_path,
+        citation=candidate.citation,
+    )
 
 
 async def lexical_search(query: str, filters: SearchFilters, limit: int) -> list[Candidate]:
@@ -224,19 +252,13 @@ async def vector_search(
     )
     sparse_res = await client.query_points(
         collection_name=settings.qdrant_latest_collection,
-        query=qmodels.SparseVector(
-            indices=embedded.sparse.indices, values=embedded.sparse.values
-        ),
+        query=qmodels.SparseVector(indices=embedded.sparse.indices, values=embedded.sparse.values),
         using="sparse",
         query_filter=qfilter,
         limit=limit,
     )
-    dense = [
-        _candidate_from_payload(str(p.id), p.payload or {}) for p in dense_res.points
-    ]
-    sparse = [
-        _candidate_from_payload(str(p.id), p.payload or {}) for p in sparse_res.points
-    ]
+    dense = [_candidate_from_payload(str(p.id), p.payload or {}) for p in dense_res.points]
+    sparse = [_candidate_from_payload(str(p.id), p.payload or {}) for p in sparse_res.points]
     return dense, sparse
 
 
