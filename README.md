@@ -46,6 +46,23 @@ of docs/BUILD_PLAN.md."* It will scaffold, implement, run, and test each phase a
   embeddings and reranking run on CPU. Keep the model context at 8K.
 - Fine-tuning, multi-user auth, and review workflows are deferred to v2.
 
+## Agent Access (MCP)
+The retrieval core is also exposed to MCP clients (Claude Code, Cursor, local
+agents) as a **read-only** MCP server named `eudi-intel` — thin adapters over the
+existing retrieval/registry functions:
+- `hybrid_search(query, filters?, limit?)` — hybrid lexical + dense/sparse search,
+  every result carrying its full citation block (tier + version + last-seen).
+- `get_chunk(chunk_id)` — one indexed chunk by id, with its citation.
+- `list_sources()` — the canonical EUDI source registry with authority tiers.
+
+All tools are read-only with structured errors. The authoring/publish plane stays
+human-gated and is **not** exposed; no tool mutates state. Run it from `api/`:
+```bash
+cd api && python -m app.mcp.server     # MCP_TRANSPORT=stdio (default)
+```
+See [`docs/mcp.md`](docs/mcp.md) for the tool reference, error contract, and
+client registration.
+
 ## Stack
 Next.js · FastAPI · PostgreSQL (FTS + pg_trgm) · Qdrant · Celery + Redis · Ollama
 (`qwen3:8b`) · BGE-M3 + bge-reranker-v2-m3 · Playwright / Trafilatura / Docling.

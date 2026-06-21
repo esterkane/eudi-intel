@@ -51,6 +51,15 @@ class Settings(BaseSettings):
 
     deep_activity_limit: int = 40  # per kind: how many recent items to deep-ingest (S1)
 
+    # ── MCP (read-only agent tools) ─────────────────────────────────────────
+    mcp_transport: str = "stdio"  # stdio (default) | http
+    mcp_http_host: str = "127.0.0.1"
+    mcp_http_port: int = 8800
+    # Hard read-only guard: mutating tools are never registered. Default false;
+    # there is no mutating tool today, so flipping it has no effect — it exists
+    # so the invariant is explicit and greppable.
+    mcp_allow_mutations: bool = False
+
     # ── Ingestion cadence (Celery Beat; seconds) ────────────────────────────
     poll_feeds_interval: int = 10800  # release/tag/commit atom feeds: 3h
     scrape_issues_interval: int = 21600  # issue/PR/discussion HTML: 6h
