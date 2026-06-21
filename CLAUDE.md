@@ -162,3 +162,86 @@ To study real GitHub repo structure during dev, just `git clone` the target repo
 - Do not let community/discussion content outrank normative Annex 2 / specs.
 - Do not exceed the VRAM rules above. If a change risks GPU spill, stop and flag it.
 - Do not auto-publish authored drafts. A human finalizes; drafts carry "source basis" until then.
+
+---
+
+# Onboarding reference (added by docs pass)
+
+> The sections above are the build contract. The sections below are the quick operational
+> reference an agent needs on session start: exact commands, a 5-line architecture, the
+> invariants to never break, and the definition of done. Commands are drawn from
+> `api/pyproject.toml`, `web/package.json`, the `run-and-test` skill, and `api/tests/README.md`.
+
+## Run / test commands (exact)
+
+All Python commands run from `api/`. All web commands run from `web/`.
+
+**Bring up the stack** (host Ollama provides the GPU):
+```bash
+ollama serve &                       # host, if not already running
+ollama pull qwen3:8b
+cp .env.example .env
+docker compose up -d postgres qdrant redis
+docker compose run --rm api alembic upgrade head     # migrations
+docker compose up -d api worker beat web
+curl -s localhost:8000/health | jq    # Phase-0 health gate: postgres/qdrant/redis/ollama green
+```
+
+**Backend — install, tests, lint, types** (from `api/`):
+```bash
+pip install -e ".[dev]"      # add ",embed" only where FlagEmbedding/torch are needed (Docker image has it)
+pytest                       # unit tests are fully offline (embeddings/LLM patched)
+ruff check .
+black --check .
+mypy app/                    # strict mode (configured in pyproject.toml)
+```
+
+**Integration + eval tests** (need real services on a dedicated `eudi_test` DB; they SKIP,
+not fail, when it is absent — see `api/tests/README.md`):
+```bash
+docker compose exec -T postgres psql -U eudi -d eudi -c "CREATE DATABASE eudi_test;"
+docker compose run --rm \
+  -e DATABASE_URL=postgresql+asyncpg://eudi:eudi@postgres:5432/eudi_test \
+  api alembic upgrade head
+pytest                       # integration tests now run against eudi_test
+RUN_GROUNDING_EVAL=1 pytest tests/test_grounding_eval.py   # opt-in grounding gate
+RUN_RECALL_EVAL=1   pytest tests/test_recall_eval.py       # opt-in recall gate
+```
+
+**Frontend** (from `web/`):
+```bash
+npm install
+npm run dev      # next dev on :3000
+npm run build
+npm run lint     # next lint (no custom eslint config; Next defaults)
+npm run e2e      # Playwright e2e: dashboard, search, drafts, support flows
+```
+
+**Quality gate / CI:** there is **no CI workflow** in this repo (no `.github/workflows/`,
+no Makefile/tox/nox). The gate is the per-phase manual gate in the `run-and-test` skill plus
+the commands above. Treat green `pytest` + `ruff check` + `black --check` + `mypy app/` (API)
+and `npm run lint` + `npm run build` + `npm run e2e` (web) as the local quality gate.
+
+## Architecture in 5 lines
+1. **Ingestion plane** (`api/app/collectors` → `parsers` → `services/snapshots`,`parse_pipeline`,`version_diff`): git clone + Atom feeds + HTML scrape of EUDI sources, token-free by default, into Postgres with source-authority tiers and snapshot diffs.
+2. **Index** (`embeddings/bge_m3.py`, `services/vector_index.py`, `db/qdrant.py`): BGE-M3 dense+sparse embeddings (CPU) written to Qdrant collections `eudi_latest` + `eudi_history`; Postgres holds FTS + `pg_trgm`.
+3. **Query plane** (`services/retrieval.py`, `embeddings/reranker.py`, `services/generation.py`,`llm.py`): hybrid lexical+vector retrieval → RRF fusion → CPU rerank → grounded generation via host Ollama (`qwen3:8b`, 8K ctx), every claim cluster carrying a citation block.
+4. **Async** (`worker/celery_app.py`,`tasks.py`): Celery + Beat on Redis run ingestion/embedding on a cadence; query time only embeds the one query + reranks a short list.
+5. **API + UI**: FastAPI routers (`health`,`ingest`,`search`,`dashboard`,`author`,`answer`,`support`) at `:8000`; Next.js App-Router SPA at `:3000` (dashboard, search, drafts, support console).
+
+## Invariants I must never break
+1. **Determinism / pipeline integrity** — Ingestion is idempotent: re-running a collector must not duplicate Documents (dedupe by source URL + content hash). Source-authority tiers are applied BEFORE ranking/generation; never let community/discussion content outrank normative ARF Annex 2 / specs.
+2. **Quality gate passes** — `pytest`, `ruff check .`, `black --check .`, `mypy app/` (strict, no bare `# type: ignore`) for the API and `npm run lint`/`npm run build`/`npm run e2e` for web must be green. (No CI runs these for you — run them locally.)
+3. **Provenance on every chunk** — Every search result, answer, dashboard card, and authored section carries a citation (`doc_title, source_url, tier, version_or_tag, section_heading, last_seen`). Never emit an uncited claim; if retrieval has no support, say so — never fabricate a source. Drafts carry "source basis" and require an explicit human finalize (no auto-publish).
+4. **No secrets in git** — Config and secrets load from `.env` (gitignored) via `pydantic-settings` / Docker `env_file:`; only `.env.example` is committed, with `GITHUB_TOKEN` empty. Never hardcode credentials in `docker-compose.yml` or code.
+5. **Repo-specific hard rules** — 8 GB VRAM envelope: the GPU is the LLM only (embeddings + reranker on CPU); LLM context capped at 8192 tokens; never raise model size/ctx on this card. Token-free GitHub access by default; a `GITHUB_TOKEN` only speeds collection, never required. Model names read from env (`GEN_MODEL`,`EMBEDDING_MODEL`,`RERANKER_MODEL`), never hardcoded. Schema changes require an Alembic migration. The LLM is reached only via `OLLAMA_BASE_URL`. Do not bake daily-changing roadmap/issue/release state into model weights — that is retrieval's job.
+
+## Definition of done
+- `pytest` passes (unit; integration when `eudi_test` is provisioned).
+- Types pass: `mypy app/` clean under strict mode.
+- Lint/format pass: `ruff check .` + `black --check .` (API); `npm run lint` + `npm run build` (web).
+- Quality gate: the relevant phase gate from the `run-and-test` skill is green (no repo CI to rely on).
+- Provenance/grounding intact: results/answers/cards/drafts carry full citations + tier + last_seen; unanswerable questions refuse rather than fabricate.
+- VRAM / token-free invariants respected (LLM-only GPU, 8K ctx, runs with empty `GITHUB_TOKEN`).
+- README / `docs/` / affected `.claude/skills/` updated if behaviour changed.
+- No secrets added; only `.env.example` documents variables.
